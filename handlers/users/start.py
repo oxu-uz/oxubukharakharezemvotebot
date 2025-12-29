@@ -8,7 +8,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.builtin import CommandStart
 from aiogram.types import *
 
-from data.config import CHANNEL_ID, CHANNEL_SUBSCRIBE_ID_1, CHANNEL_SUBSCRIBE_ID_2, BOT_USERNAME
+from data.config import CHANNEL_SUBSCRIBE_ID_1, CHANNEL_SUBSCRIBE_ID_2, BOT_USERNAME
 from helpers import is_user_subscribed, join_channels_keyboard, remove_all_whitespace
 from loader import dp, bot, db
 from message.function.get_keyboard_inline import make_inline_button
@@ -35,7 +35,7 @@ async def bot_start(message: Message, state: FSMContext):
 
     top_groups = InlineKeyboardMarkup(row_width=2)
     for group in win_groups:
-        button = InlineKeyboardButton(text=f"{group['total_votes']}|{group['name']}", url=f"https://t.me/Quda_tarafbot?start={group['name']}")
+        button = InlineKeyboardButton(text=f"{group['total_votes']}|{group['name']}", url=f"https://t.me/{BOT_USERNAME}?start={group['name']}")
         top_groups.add(button)
     top_groups.add(
         InlineKeyboardButton(
@@ -49,24 +49,45 @@ async def bot_start(message: Message, state: FSMContext):
     check = await db.check_user(message.chat.id)
     if not check:
         if args:
-            if not await is_user_subscribed(message.from_user.id, message.bot):
-                await message.answer("🚫 Avval kanalga obuna bo‘ling", reply_markup=await join_channels_keyboard())
-                return
-            area = await db.get_area(args)
-            await state.update_data(
-                id=area[0][0],
-                name=area[0][1],
-                total_votes=area[0][2],
-            )
-            await message.answer(
-                f"{args} guruhiga ovoz beryapsiz\nGuruhning hozirgi ko'rsatkichi: {area[0][2]}",
-                reply_markup=await make_inline_button(text=area[0][1], callback_data=f"area_id_{area[0][0]}"))
-            await StudentState.get_vote.set()
-            return
+            for channel in [CHANNEL_SUBSCRIBE_ID_1, CHANNEL_SUBSCRIBE_ID_2]:
+                member = await bot.get_chat_member(
+                    chat_id=channel,
+                    user_id=message.from_user.id
+                )
 
-        if not await is_user_subscribed(message.from_user.id, message.bot):
-            await message.answer("🚫 Avval kanalga obuna bo‘ling", reply_markup=await join_channels_keyboard())
-            return
+                if member.status not in ("member", "administrator", "creator"):
+                    await message.answer(
+                        "❌ Avval barcha kanallarga obuna bo‘ling.", reply_markup=await join_channels_keyboard()
+                    )
+                    return
+                if member.status in ("member", "administrator", "creator"):
+                    area = await db.get_area(args)
+                    print(area)
+                    await state.update_data(
+                        id=area[0][0],
+                        name=area[0][1],
+                        total_votes=area[0][2],
+                    )
+                    await message.answer(
+                        f"{args} guruhiga ovoz beryapsiz\nGuruhning hozirgi ko'rsatkichi: {area[0][2]}",
+                        reply_markup=await make_inline_button(text=area[0][1], callback_data=f"area_id_{area[0][0]}"))
+                    await StudentState.get_vote.set()
+                    return
+
+        # if not await is_user_subscribed(message.from_user.id, message.bot):
+        #     await message.answer("🚫 Avval kanalga obuna bo‘ling", reply_markup=await join_channels_keyboard())
+        #     return
+        for channel in [CHANNEL_SUBSCRIBE_ID_1, CHANNEL_SUBSCRIBE_ID_2]:
+            member = await bot.get_chat_member(
+                chat_id=channel,
+                user_id=message.from_user.id
+            )
+
+            if member.status not in ("member", "administrator", "creator"):
+                await message.answer(
+                    "❌ Avval barcha kanallarga obuna bo‘ling.", reply_markup=await join_channels_keyboard()
+                )
+                return
 
 
         await StudentState.group.set()
@@ -77,7 +98,7 @@ async def bot_start(message: Message, state: FSMContext):
 from aiogram import types
 
 
-@dp.callback_query_handler(text="check_subscribe")
+@dp.callback_query_handler(text="check_subscribe", state='*')
 async def check_subscription(call: types.CallbackQuery):
     user_id = call.from_user.id
     for channel in [CHANNEL_SUBSCRIBE_ID_1, CHANNEL_SUBSCRIBE_ID_2]:
@@ -98,7 +119,7 @@ async def check_subscription(call: types.CallbackQuery):
     top_groups = InlineKeyboardMarkup(row_width=2)
     for group in win_groups:
         button = InlineKeyboardButton(text=f"{group['total_votes']}|{group['name']}",
-                                      url=f"https://t.me/Quda_tarafbot?start={group['name']}")
+                                      url=f"https://t.me/{BOT_USERNAME}?start={group['name']}")
         top_groups.add(button)
     top_groups.add(
         InlineKeyboardButton(
@@ -151,6 +172,18 @@ async def voice(message: Message, state: FSMContext):
 
 @dp.callback_query_handler(lambda c: c.data.startswith("area_id_"), state=StudentState.get_vote)
 async def vote(call: CallbackQuery, state: FSMContext):
+    for channel in [CHANNEL_SUBSCRIBE_ID_1, CHANNEL_SUBSCRIBE_ID_2]:
+        member = await call.bot.get_chat_member(
+            chat_id=channel,
+            user_id=call.from_user.id
+        )
+
+        if member.status not in ("member", "administrator", "creator"):
+            await call.message.answer(
+                "❌ Avval barcha kanallarga obuna bo‘ling.", reply_markup=await join_channels_keyboard()
+            )
+            await call.answer()
+            return
     random_int = random.randint(0, len(voices_path) - 1)
     random_voice = voices_path[random_int]
     await state.update_data(voice_code=random_voice['key'])
@@ -174,7 +207,7 @@ async def recaptcha(message: Message, state: FSMContext):
 
         markup = InlineKeyboardMarkup()
         share_text = f"Men {data['name']} guruhiga ovoz berdim! Siz ham ovoz bering!"
-        share_url = f"https://t.me/Quda_tarafbot?start={data['name']}"
+        share_url = f"https://t.me/{BOT_USERNAME}?start={data['name']}"
         share_button = InlineKeyboardButton(text="Ulashish",
                                             url=f"https://t.me/share/url?text={share_text}&url={share_url}")
         markup.add(share_button)

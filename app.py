@@ -15,7 +15,7 @@ async def on_startup(dispatcher):
     await set_default_commands(dispatcher)
 
     # Notify admins about bot startup
-    await on_startup_notify(dispatcher)
+    # await on_startup_notify(dispatcher)
 
 
 

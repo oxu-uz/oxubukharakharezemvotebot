@@ -42,7 +42,9 @@ async def exel_import_areas():
 async def is_user_subscribed(user_id: int, bot) -> bool:
     try:
         member = await bot.get_chat_member(CHANNEL_ID, user_id)
-        return member.status in ['member', 'administrator', 'creator']
+        member_status = member.status in ['member', 'administrator', 'creator']
+        print(member_status)
+        return member_status
     except Exception:
         return False
 
