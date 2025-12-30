@@ -97,8 +97,12 @@ class Database:
         params = f"%{search}%"
         return await self.execute(sql, params, fetch=True)
 
+    async def get_area_by_id(self, area_id):
+        sql = "SELECT * FROM areas WHERE id = $1"
+        return await self.execute(sql, area_id, fetch=True)
+
     async def get_win_areas(self):
-        sql = "SELECT * FROM areas ORDER BY total_votes DESC LIMIT 10"
+        sql = "SELECT a.id AS area_id, a.name AS area_name, COUNT(u.id) AS total FROM public.users u JOIN public.areas a ON u.area_id = a.id GROUP BY a.id, a.name ORDER BY total DESC LIMIT 10;"
         return await self.execute(sql, fetch=True)
 
     async def update_votes(self,vote, area_id):
@@ -110,9 +114,9 @@ class Database:
         sql, parameters = self.format_args(sql, parameters=kwargs)
         return await self.execute(sql, *parameters, fetchrow=True)
 
-    async def count_users(self):
-        sql = "SELECT COUNT(*) FROM public.users"
-        return await self.execute(sql, fetchval=True)
+    async def count_users(self, area_id):
+        sql = "SELECT COUNT(*) FROM public.users WHERE area_id = $1"
+        return await self.execute(sql, area_id, fetchval=True)
 
     async def update_user_language(self, language, telegram_id):
         sql = "UPDATE public.users SET language=$1 WHERE telegram_id=$2"

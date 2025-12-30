@@ -25,17 +25,18 @@ async def cancel(message: Message, state: FSMContext):
 @dp.message_handler(commands=["help"], chat_type='private', state='*')
 async def bot_start(message: Message, state: FSMContext):
     await state.finish()
-    await message.answer(f"Yordam uchun @abuser_99 ga murojaat qiling!")
+    await message.answer(f"Yordam uchun @beeliberty ga murojaat qiling!")
 
 
 @dp.message_handler(CommandStart(), chat_type='private', state='*')
 async def bot_start(message: Message, state: FSMContext):
     await state.finish()
     win_groups = await db.get_win_areas()
-
+    print('win_groups', win_groups)
     top_groups = InlineKeyboardMarkup(row_width=2)
     for group in win_groups:
-        button = InlineKeyboardButton(text=f"{group['total_votes']}|{group['name']}", url=f"https://t.me/{BOT_USERNAME}?start={group['name']}")
+        button = InlineKeyboardButton(text=f"{group['area_name']} - {group['total']} ta ovoz",
+                                      url=f"https://t.me/{BOT_USERNAME}?start={group['area_name']}")
         top_groups.add(button)
     top_groups.add(
         InlineKeyboardButton(
@@ -43,7 +44,7 @@ async def bot_start(message: Message, state: FSMContext):
             switch_inline_query_current_chat=""
         )
     )
-    await message.answer("Eng ko'p ovoz yig'gan guruhlar 10 ligi:", reply_markup=top_groups)
+    await message.answer("Eng ko'p ovoz yig'gan guruhlar :", reply_markup=top_groups)
 
     args = message.get_args()
     check = await db.check_user(message.chat.id)
@@ -62,11 +63,14 @@ async def bot_start(message: Message, state: FSMContext):
                     return
                 if member.status in ("member", "administrator", "creator"):
                     area = await db.get_area(args)
-                    print(area)
+                    print('area===', area)
+                    print(area[0]['id'])
+                    count_users = await db.count_users(area[0]['id'])
+                    # print(count_users)
                     await state.update_data(
                         id=area[0][0],
                         name=area[0][1],
-                        total_votes=area[0][2],
+                        total_votes=count_users,
                     )
                     await message.answer(
                         f"{args} guruhiga ovoz beryapsiz\nGuruhning hozirgi ko'rsatkichi: {area[0][2]}",
@@ -88,7 +92,6 @@ async def bot_start(message: Message, state: FSMContext):
                     "❌ Avval barcha kanallarga obuna bo‘ling.", reply_markup=await join_channels_keyboard()
                 )
                 return
-
 
         await StudentState.group.set()
     else:
@@ -158,17 +161,20 @@ async def inline_area_search(inline_query: types.InlineQuery):
 
 @dp.message_handler(chat_type='private', state=StudentState.vote)
 async def voice(message: Message, state: FSMContext):
-    area = await db.get_area(message.text)
-    await state.update_data(
-        id=area[0][0],
-        name=area[0][1],
-        total_votes=area[0][2],
-    )
-    await message.answer(
-        f"{message.text} guruhiga ovoz beryapsiz\nGuruhning hozirgi ko'rsatkichi: {area[0][2]}",
-        reply_markup=await make_inline_button(text=area[0][1], callback_data=f"area_id_{area[0][0]}"))
-    await StudentState.get_vote.set()
-
+    check = await db.check_user(message.chat.id)
+    if not check:
+        area = await db.get_area(message.text)
+        await state.update_data(
+            id=area[0][0],
+            name=area[0][1],
+            total_votes=area[0][2],
+        )
+        await message.answer(
+            f"{message.text} guruhiga ovoz beryapsiz\nGuruhning hozirgi ko'rsatkichi: {area[0][2]}",
+            reply_markup=await make_inline_button(text=area[0][1], callback_data=f"area_id_{area[0][0]}"))
+        await StudentState.get_vote.set()
+    else:
+        await message.answer('Siz allaqachon ovoz bergansiz! Faqat 1 marta ovoz berish mumkin.')
 
 @dp.callback_query_handler(lambda c: c.data.startswith("area_id_"), state=StudentState.get_vote)
 async def vote(call: CallbackQuery, state: FSMContext):
@@ -195,7 +201,10 @@ async def vote(call: CallbackQuery, state: FSMContext):
 async def recaptcha(message: Message, state: FSMContext):
     data = await state.get_data()
     if data['voice_code'] == message.text:
-        update_vote = await db.update_votes(data['total_votes'] + 1, data['id'])
+        total_vote = await db.count_users(data['id'])
+        print(total_vote)
+        update_vote = await db.update_votes(total_vote + 1, data['id'])
+        print(update_vote)
         await db.create_user(
             telegram_id=message.from_user.id,
             name=message.from_user.full_name,

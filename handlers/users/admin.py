@@ -7,7 +7,7 @@ from aiogram.utils.exceptions import BadWebhookAddrInfo
 
 from data.config import ADMINS
 from helpers import exel_import_areas
-from loader import dp, bot
+from loader import dp, bot, db
 from states.admin import AdminState
 
 
@@ -16,7 +16,7 @@ async def bot_start(message: Message, state: FSMContext):
     if str(message.from_user.id) in ADMINS:
         await state.finish()
         await message.answer(f"Assalomu aleykum admin {message.from_user.full_name}!")
-        await message.answer(f"Guruhlar yuklash uchun:\n\n /areas")
+        await message.answer(f"Guruhlar yuklash uchun:\n\n /areas\nbelgilangan gurugga ovoz berganlar:\n\n/group_report")
         await AdminState.area.set()
 
 
@@ -26,6 +26,22 @@ async def bot_start(message: Message):
                          photo=InputFile('area_exel_example.png'),
                          caption=f"Exel fayl nomi areas.xlsx bo'lishi va ustunlar rasmdagiday nomlanishi kerak !")
     await AdminState.exel_area_seed.set()
+
+@dp.message_handler(commands='group_report', chat_type='private', state=AdminState.area)
+async def bot_start(message: Message):
+    await message.answer("Guruh nomini aniq kiriting")
+    await AdminState.area_users_send.set()
+
+@dp.message_handler(chat_type='private', state=AdminState.area_users_send)
+async def bot_start(message: Message):
+    print(message.text)
+    users = await db.get_area(message.text)
+    print(users)
+    count = await db.count_users(users[0])
+    print(count)
+    await message.answer(f"count: {count}\nid: {users['id']}\nname: {users['name']}\nusername: {users['username']}")
+    await message.answer(f"Guruhlar yuklash uchun:\n\n /areas\nbelgilangan gurugga ovoz berganlar:\n\n/group_report")
+    await AdminState.area.set()
 
 
 
